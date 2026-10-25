@@ -4,6 +4,7 @@ import { h, avatar, bevestig, toast, flits, tijd, meervoud } from './dom.js';
 import { turf } from './turf.js';
 import { rad } from './rad.js';
 import { nieuweSpelerFormulier } from './spelers.js';
+import { installeerBlok, isGeinstalleerd } from './installeren.js';
 
 // Blijft bewaard tussen het wisselen van tabbladen.
 const staat = {
@@ -51,6 +52,19 @@ function opzet(store, app) {
     const aantal = staat.geselecteerd.length;
     const kanStarten = aantal >= SPELERS_MIN && aantal <= SPELERS_MAX;
     const blokken = [];
+
+    if (!isGeinstalleerd() && !store.meta.installTipWeg) {
+      blokken.push(
+        h('div', { class: 'kaart installeer-kaart' },
+          h('strong', null, 'Zet Viltje op je beginscherm'),
+          h('p', { class: 'klein' }, 'Dan opent hij als app, werkt hij zonder internet en blijven je gegevens bewaard.'),
+          h('div', { class: 'knoppen-rij' },
+            installeerBlok(),
+            h('button', { class: 'knop tekst', onclick: () => store.zetMeta({ installTipWeg: true }) }, 'Niet nu'),
+          ),
+        ),
+      );
+    }
 
     if (avond) {
       const potjes = store.potjesVan(avond.id);
@@ -161,19 +175,18 @@ function bord(store, app, potje) {
     const label = h('span', { class: 'label' });
     const turfVak = h('div', { class: 'turf-vak' });
     const min = h('button', { class: 'knop-min', 'aria-label': `Streep eraf bij ${s?.naam}`, onclick: () => tik(id, -1) }, '−');
-    const laf = h('button', {
-      class: 'laf-knop',
-      'aria-label': `${s?.naam} was laf`,
-      title: `Laf mag ${LAF_MAX} keer per potje`,
-      onclick: () => lafTik(id),
-    });
+    // Laf: niet meegaan met een toep. Mag twee keer per potje.
+    const lafMin = h('button', { class: 'laf-min', 'aria-label': `Laf eraf bij ${s?.naam}`, onclick: () => lafTik(id, -1) }, '−');
+    const lafPlus = h('button', { class: 'laf-plus', 'aria-label': `${s?.naam} was laf`, onclick: () => lafTik(id, 1) }, '+');
+    const lafTal = h('span', { class: 'laf-tal', 'aria-live': 'polite' });
+    const laf = h('div', { class: 'laf', title: `Laf mag ${LAF_MAX} keer per potje` }, lafMin, lafTal, lafPlus);
     const plus = h('button', { class: 'knop-plus', 'aria-label': `Streep erbij voor ${s?.naam}`, onclick: () => tik(id, 1) }, '+');
     const rij = h('div', { class: 'rij', style: `--kleur:${s?.kleur ?? '#777'}` },
       h('div', { class: 'rij-naam' }, avatar(s), h('span', { class: 'naam' }, s?.naam ?? '?'), label, laf),
       turfVak,
       min, stand, plus,
     );
-    rijen.set(id, { rij, stand, label, turfVak, min, laf });
+    rijen.set(id, { rij, stand, label, turfVak, min, laf, lafMin, lafPlus, lafTal });
   }
 
   const bordEl = h('section', { class: `bord${potje.spelers.length > 5 ? ' veel' : ''}` },
@@ -208,9 +221,10 @@ function bord(store, app, potje) {
       if (vorigeStanden[id] !== st[id]) r.turfVak.replaceChildren(turf(st[id]));
       r.min.disabled = !magMin(st[id]) || !!p.einde;
       r.rij.querySelector('.knop-plus').disabled = !!p.einde;
-      r.laf.textContent = `Laf ${lafs[id]}`;
+      r.lafTal.textContent = `Laf ${lafs[id]}`;
       r.laf.classList.toggle('vol', lafs[id] >= LAF_MAX);
-      r.laf.disabled = !magLaf(p, st[id], lafs[id]) || !!p.einde;
+      r.lafPlus.disabled = !magLaf(p, st[id], lafs[id]) || !!p.einde;
+      r.lafMin.disabled = lafs[id] === 0 || !!p.einde;
     }
     vorigeStanden = st;
     ongedaanKnop.disabled = !laatsteStreep(p.id, store.data.strepen);
@@ -228,9 +242,11 @@ function bord(store, app, potje) {
     if (uit.nieuwDood) flits(rijen.get(uit.nieuwDood)?.rij, 'sterf');
   }
 
-  async function lafTik(id) {
+  async function lafTik(id, delta) {
     navigator.vibrate?.(10);
-    if (await store.laf(potje.id, id)) flits(rijen.get(id)?.laf, 'tel');
+    const gelukt = delta > 0 ? await store.laf(potje.id, id) : await store.lafWeg(potje.id, id);
+    if (gelukt) flits(rijen.get(id)?.lafTal, 'tel');
+    else if (delta > 0) toast(`${speler(id)?.naam ?? '?'} was al ${LAF_MAX} keer laf. De derde keer mag niet.`, { duur: 2500 });
   }
 
   async function ongedaan() {

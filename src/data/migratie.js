@@ -15,6 +15,7 @@ export function standaardMeta() {
     radGeluid: false,
     minPotjes: 5,
     tipsGezien: false,
+    installTipWeg: false,
   };
 }
 

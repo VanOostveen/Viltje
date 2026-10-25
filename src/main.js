@@ -10,6 +10,7 @@ import { statistiekenScherm } from './ui/statistieken.js';
 import { instellingenScherm } from './ui/instellingen.js';
 import { toonTips } from './ui/tips.js';
 import { startPwa } from './pwa.js';
+import { opInstallatieWijziging } from './ui/installeren.js';
 
 const SCHERMEN = {
   spel: { titel: 'Viltje', maak: spelScherm },
@@ -88,6 +89,8 @@ async function start() {
   navigator.storage?.persist?.().catch(() => {});
 
   store.luister(bijWijziging);
+  // Komt de installatieprompt binnen, dan het scherm bijwerken zodat de knop verschijnt.
+  opInstallatieWijziging(() => teken());
   window.addEventListener('hashchange', () => teken({ wissel: true }));
   terug.addEventListener('click', () => (history.length > 1 ? history.back() : app.navigeer('spel')));
   tandwiel.addEventListener('click', () => app.navigeer('instellingen'));
