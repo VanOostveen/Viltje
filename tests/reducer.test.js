@@ -131,4 +131,24 @@ describe('reducer', () => {
     const na = speel(t, speler('c'), { type: 'speler/verwijderd', id: 'a' }, { type: 'speler/verwijderd', id: 'c' });
     expect(na.spelers.map((s) => [s.id, !!s.gearchiveerd])).toEqual([['a', true], ['b', false]]);
   });
+
+  it('laf weghalen haalt alleen de laatste laf van die speler weg', () => {
+    let [t, p] = metPotje();
+    t = speel(t, laf(p, 'a'), streep(p, 'b'), laf(p, 'a'), laf(p, 'b'));
+    t = reducer(t, { type: 'laf/weggehaald', potje: p, speler: 'a' });
+    expect(lafTellers(t.potjes[0], t.strepen)).toEqual({ a: 1, b: 1, c: 0 });
+    expect(standen(t.potjes[0], t.strepen).b).toBe(1);
+    t = speel(t, { type: 'laf/weggehaald', potje: p, speler: 'a' });
+    expect(reducer(t, { type: 'laf/weggehaald', potje: p, speler: 'a' })).toBe(t);
+    expect(reducer(t, { type: 'laf/weggehaald', potje: p, speler: 'c' })).toBe(t);
+  });
+
+  it('een weggehaalde speler kan worden teruggezet', () => {
+    const [t] = metPotje(['a', 'b']);
+    const c = { id: 'c', naam: 'c', kleur: '#000', emoji: '', aangemaakt: 0 };
+    let na = speel(t, { type: 'speler/toegevoegd', speler: c }, { type: 'speler/verwijderd', id: 'a' }, { type: 'speler/verwijderd', id: 'c' });
+    na = speel(na, { type: 'speler/teruggezet', speler: { id: 'a', naam: 'a' } }, { type: 'speler/teruggezet', speler: c });
+    expect(na.spelers.map((s) => [s.id, !!s.gearchiveerd])).toEqual([['a', false], ['b', false], ['c', false]]);
+    expect(reducer(na, { type: 'speler/teruggezet', speler: c })).toBe(na);
+  });
 });

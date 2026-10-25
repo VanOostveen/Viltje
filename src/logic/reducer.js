@@ -113,6 +113,18 @@ export function reducer(t, actie) {
       return { ...t, spelers: t.spelers.filter((s) => s.id !== speler.id) };
     }
 
+    case 'speler/teruggezet': {
+      // Ongedaan maken van weghalen: uit het archief, of het oude object terug.
+      const { speler } = actie;
+      if (naamBestaat(t, speler.naam, speler.id)) return t;
+      const bestaand = vind(t.spelers, speler.id);
+      if (bestaand) {
+        if (!bestaand.gearchiveerd) return t;
+        return { ...t, spelers: vervang(t.spelers, { ...bestaand, gearchiveerd: false }) };
+      }
+      return { ...t, spelers: [...t.spelers, { ...speler, gearchiveerd: false }] };
+    }
+
     case 'potje/gestart': {
       const { potjeId, avondId, spelers, instellingen, nu } = actie;
       const uniek = [...new Set(spelers)];
@@ -157,6 +169,14 @@ export function reducer(t, actie) {
       const stand = standen(potje, t.strepen)[laf.speler];
       if (!magLaf(potje, stand, lafTellers(potje, t.strepen)[laf.speler])) return t;
       return { ...t, strepen: [...t.strepen, { ...laf, soort: 'laf', delta: 1 }] };
+    }
+
+    case 'laf/weggehaald': {
+      // Haalt de laatste laf van deze speler weg (correctie met de min-knop).
+      if (!lopendMet(t, actie.potje, actie.speler)) return t;
+      const laatste = t.strepen.filter((s) => s.potje === actie.potje && s.speler === actie.speler && s.soort === 'laf').at(-1);
+      if (!laatste) return t;
+      return { ...t, strepen: t.strepen.filter((s) => s !== laatste) };
     }
 
     case 'ongedaan': {

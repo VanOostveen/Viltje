@@ -7,7 +7,7 @@ Viltje is een PWA die bij toepen de strepen bijhoudt (vervangt het bierviltje). 
 - Avond = reeks potjes; begint bij het eerste potje, sluit met "Avond klaar" of automatisch na 12 uur stilte. Een onafgemaakt potje telt niet.
 - Potje: 2–8 spelers in tafelvolgorde. Instellingen per potje (laatst gebruikte = standaard): dood bij 5–30 (std 10), armoede tonen (std aan), rad voor het rondje (std uit).
 - Stand = som van de strepen (+1/−1) van een speler in dat potje; nooit onder nul. Dood bij stand ≥ dood-bij. Arm bij stand = dood-bij − 1 (alleen tonen als de instelling aan staat). Eén speler over = winnaar, potje wordt automatisch opgeslagen.
-- Laf: een speler die niet meegaat met een toep krijgt een laf-tik. Twee keer per potje mag, de derde keer niet. Alleen een teller; telt niet als streep. Statistieken tonen het laffe spelersklassement.
+- Laf: een speler die niet meegaat met een toep krijgt een laf-tik (+ en − per speler). Twee keer per potje mag, de derde keer niet. Alleen een teller; telt niet als streep. Statistieken tonen het laffe spelersklassement.
 - Ongedaan maken verwijdert de laatste actie (streep of laf); een afgelopen potje gaat dan weer verder.
 - De app bewaakt de spelregels niet: de tafel beslist wie strepen krijgt. Geen vuile was.
 - Rad voor de verliezer: na het potje draait de verliezer (wie als eerste dood ging) een opdracht. Standaard alleen "Adtje"; eigen opdrachten toevoegen in Instellingen (bewaard in meta en in de back-up). Altijd minstens één opdracht. Geluid standaard uit.
@@ -24,7 +24,7 @@ Viltje is een PWA die bij toepen de strepen bijhoudt (vervangt het bierviltje). 
 
 Alle wijzigingen aan de data gaan via `reducer(toestand, actie)` in `src/logic/reducer.js`. De reducer is puur: geen DOM, opslag, klok of toeval (ids en tijdstippen zitten in de actie). Een actie die niet mag (streep in een afgelopen potje, derde keer laf, min onder nul, ongeldige instellingen) geeft dezelfde toestand terug. Objecten worden vervangen, nooit aangepast. `store.js` maakt acties, stuurt ze door de reducer en schrijft met `verschil()` precies de gewijzigde objecten in één transactie naar de opslag. Nieuwe functionaliteit = nieuwe actie in de reducer, met test in `tests/reducer.test.js`.
 
-Acties: `meta/gezet`, `speler/toegevoegd`, `speler/gewijzigd`, `speler/verwijderd`, `potje/gestart`, `streep/gezet`, `laf/gezet`, `ongedaan`, `rad/uitkomst`, `rad/optie-toegevoegd`, `rad/optie-verwijderd`, `potje/verwijderd`, `avond/klaar`, `avonden/verlopen`, `data/vervangen`.
+Acties: `meta/gezet`, `speler/toegevoegd`, `speler/gewijzigd`, `speler/verwijderd`, `speler/teruggezet`, `potje/gestart`, `streep/gezet`, `laf/gezet`, `laf/weggehaald`, `ongedaan`, `rad/uitkomst`, `rad/optie-toegevoegd`, `rad/optie-verwijderd`, `potje/verwijderd`, `avond/klaar`, `avonden/verlopen`, `data/vervangen`.
 
 ## Mappen
 

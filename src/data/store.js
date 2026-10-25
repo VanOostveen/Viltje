@@ -95,6 +95,7 @@ export function maakStore(opslag, klok = () => Date.now()) {
     },
 
     spelerVerwijderen: (id) => verwerk({ type: 'speler/verwijderd', id }),
+    spelerTerugzetten: (speler) => verwerk({ type: 'speler/teruggezet', speler }),
 
     // ---- Avonden ----
     openAvond: () => openAvond(data),
@@ -137,6 +138,7 @@ export function maakStore(opslag, klok = () => Date.now()) {
       };
     },
 
+    lafWeg: (potjeId, spelerId) => verwerk({ type: 'laf/weggehaald', potje: potjeId, speler: spelerId }),
     laf: (potjeId, spelerId) =>
       verwerk({ type: 'laf/gezet', laf: { id: nieuwId(), potje: potjeId, speler: spelerId, tijdstip: tijd() } }),
 

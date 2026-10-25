@@ -1,6 +1,6 @@
 // Tabblad Spelers: vaste spelerslijst met naam en kleur of emoji.
 import { KLEUREN } from '../data/store.js';
-import { h, avatar, dialoog, bevestig, toast, meervoud } from './dom.js';
+import { h, avatar, dialoog, toast, meervoud } from './dom.js';
 
 const EMOJI = ['🍺', '🃏', '👑', '🎩', '🦊', '🐻', '🐸', '🌶️', '🔥', '🍀', '⚓', '🚜'];
 
@@ -29,6 +29,21 @@ export function nieuweSpelerFormulier(store, opToegevoegd) {
 function bestaat(store, naam, behalve) {
   const n = naam.trim().toLocaleLowerCase('nl');
   return store.actieveSpelers().some((s) => s.id !== behalve && s.naam.toLocaleLowerCase('nl') === n);
+}
+
+/**
+ * Haalt een speler direct weg, met terugzetten via de melding. Wie al potjes
+ * speelde blijft in de geschiedenis en statistieken staan.
+ */
+export async function weghalen(store, speler) {
+  await store.spelerVerwijderen(speler.id);
+  toast(`${speler.naam} weggehaald. Tik om terug te zetten.`, {
+    duur: 5000,
+    opKlik: async () => {
+      document.querySelector('.toast')?.remove();
+      if (!(await store.spelerTerugzetten(speler))) toast(`Er is al een ${speler.naam}.`);
+    },
+  });
 }
 
 function bewerk(store, speler) {
@@ -66,22 +81,11 @@ function bewerk(store, speler) {
     const verwijder = !nieuw &&
       h('button', {
         type: 'button', class: 'knop gevaar tekst',
-        onclick: async () => {
-          const gespeeld = store.heeftGespeeld(speler.id);
-          const ok = await bevestig({
-            titel: gespeeld ? `${speler.naam} archiveren?` : `${speler.naam} verwijderen?`,
-            tekst: gespeeld
-              ? 'De speler verdwijnt uit de lijst, maar de gespeelde potjes en statistieken blijven bewaard.'
-              : 'De speler heeft nog geen potjes gespeeld en wordt verwijderd.',
-            ok: gespeeld ? 'Archiveren' : 'Verwijderen',
-            gevaar: true,
-          });
-          if (ok) {
-            await store.spelerVerwijderen(speler.id);
-            sluit(true);
-          }
+        onclick: () => {
+          sluit(true);
+          weghalen(store, speler);
         },
-      }, store.heeftGespeeld(speler.id) ? 'Archiveren' : 'Verwijderen');
+      }, 'Weghalen');
 
     return h('form', {
       class: 'dialoog-inhoud',
@@ -120,19 +124,19 @@ export function spelersScherm(store) {
     actief.length === 0 && h('p', { class: 'leeg' }, 'Nog geen spelers. Voeg je vaste toepers toe.'),
     h('ul', { class: 'lijst' },
       actief.map((s) =>
-        h('li', null,
+        h('li', { class: 'speler-regel' },
           h('button', { class: 'lijst-regel', onclick: () => bewerk(store, s) },
             avatar(s),
             h('span', { class: 'naam' }, s.naam),
             h('span', { class: 'klein' }, meervoud(aantalPotjes(s.id), 'potje', 'potjes')),
-            h('span', { class: 'pijl', 'aria-hidden': 'true' }, '›'),
           ),
+          h('button', { class: 'weg-knop', 'aria-label': `${s.naam} weghalen`, onclick: () => weghalen(store, s) }, '✕'),
         ),
       ),
     ),
     archief.length > 0 &&
       h('details', { class: 'archief' },
-        h('summary', null, `Gearchiveerd (${archief.length})`),
+        h('summary', null, `Weggehaald (${archief.length})`),
         h('ul', { class: 'lijst' },
           archief.map((s) =>
             h('li', { class: 'lijst-regel' },
@@ -142,7 +146,7 @@ export function spelersScherm(store) {
                 class: 'knop klein',
                 onclick: () => {
                   if (bestaat(store, s.naam)) return toast(`Er is al een actieve ${s.naam}.`);
-                  store.spelerWijzigen(s.id, { gearchiveerd: false });
+                  store.spelerTerugzetten(s);
                 },
               }, 'Terugzetten'),
             ),

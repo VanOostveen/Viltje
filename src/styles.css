@@ -541,40 +541,62 @@ input[type='text']:focus {
 }
 
 /* Laf: niet meegaan met een toep. Mag twee keer per potje. */
-.laf-knop {
+.laf {
   flex: none;
+  display: flex;
+  align-items: center;
   margin-left: auto;
-  min-width: 56px;
-  min-height: 36px;
-  padding: 0 10px;
   border: 1px solid var(--rand);
   border-radius: 999px;
   background: var(--knop);
-  font-size: 0.85rem;
+}
+
+.laf.vol {
+  border-color: var(--accent);
+}
+
+.laf-min,
+.laf-plus {
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.laf-min:active:not(:disabled),
+.laf-plus:active:not(:disabled) {
+  background: color-mix(in srgb, var(--tekst) 10%, transparent);
+}
+
+.laf-min:disabled,
+.laf-plus:disabled {
+  opacity: 0.3;
+}
+
+.laf-tal {
+  display: inline-block;
+  min-width: 3.2em;
+  text-align: center;
+  font-size: 0.9rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.laf-knop:active:not(:disabled) {
-  transform: scale(0.94);
-}
-
-.laf-knop.vol {
-  border-color: var(--accent);
+.laf.vol .laf-tal {
   color: var(--accent);
 }
 
-.laf-knop:disabled {
-  opacity: 0.6;
-}
-
-.laf-knop.tel {
+.laf-tal.tel {
   animation: tel 0.35s ease-out;
 }
 
 @keyframes tel {
   40% {
-    transform: scale(1.18);
+    transform: scale(1.2);
   }
 }
 
@@ -1315,4 +1337,44 @@ input[type='text']:focus {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------- Spelers weghalen ---------- */
+
+.speler-regel {
+  display: flex;
+  gap: 8px;
+}
+
+.speler-regel .lijst-regel {
+  flex: 1;
+  min-width: 0;
+}
+
+.weg-knop {
+  flex: none;
+  width: 56px;
+  border: 1px solid var(--rand);
+  border-radius: 14px;
+  background: var(--kaart);
+  color: var(--zacht);
+  font-size: 1.1rem;
+}
+
+.weg-knop:active {
+  background: var(--knop);
+}
+
+.installeer-kaart {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.installeer-kaart p {
+  margin: 0;
+}
+
+.installeer-kaart .hint {
+  margin: 0;
 }

@@ -2,6 +2,7 @@
 import { h, bevestig, toast, meervoud } from './dom.js';
 import { schakelaar, resetSpelStaat } from './spel.js';
 import { RAD_OPTIE_MAX } from '../logic/reducer.js';
+import { installeerBlok } from './installeren.js';
 
 export function instellingenScherm(store, app) {
   const m = store.meta;
@@ -59,7 +60,11 @@ export function instellingenScherm(store, app) {
       ),
     ),
 
+    h('h2', null, 'Installeren'),
+    installeerBlok() ?? h('p', { class: 'hint' }, 'Viltje staat op je beginscherm en werkt ook zonder internet.'),
+
     h('h2', null, 'Back-up'),
+    opslagStatus(),
     h('p', { class: 'hint' }, `Alles staat alleen op deze telefoon: ${meervoud(store.data.spelers.length, 'speler', 'spelers')}, ${meervoud(store.data.avonden.length, 'avond', 'avonden')}, ${meervoud(store.data.potjes.length, 'potje', 'potjes')}. Met een back-up zet je het over naar een andere telefoon.`),
     h('div', { class: 'knoppen-rij' },
       h('button', { class: 'knop', onclick: () => exporteer(store) }, 'Exporteren'),
@@ -79,6 +84,17 @@ export function instellingenScherm(store, app) {
     h('p', { class: 'klein versie' }, `Viltje ${__VERSIE__}, opslag in ${app.opslagSoort}`),
   );
   return { el, sleutel: 'instellingen' };
+}
+
+/** Laat zien of de browser de opslag blijvend bewaart. */
+function opslagStatus() {
+  const el = h('p', { class: 'hint' });
+  navigator.storage?.persisted?.().then((blijvend) => {
+    el.textContent = blijvend
+      ? 'Opslag: blijvend. De browser ruimt deze gegevens niet zelf op.'
+      : 'Opslag: niet gegarandeerd blijvend. Installeer Viltje op je beginscherm en maak af en toe een back-up.';
+  }).catch(() => {});
+  return el;
 }
 
 function radOptieFormulier(store) {
