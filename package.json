@@ -1,0 +1,27 @@
+{
+  "name": "viltje",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Viltje – strepen bijhouden bij toepen",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "icons": "node scripts/make-icons.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VanOostveen/Viltje.git"
+  },
+  "dependencies": {
+    "idb": "^8.0.4"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.6",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0",
+    "vitest": "^5.0.5"
+  }
+}
