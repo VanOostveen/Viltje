@@ -1,6 +1,7 @@
 // Instellingen achter het tandwiel: rad, ranglijst, back-up, tips en privacy.
 import { h, bevestig, toast, meervoud } from './dom.js';
 import { schakelaar, resetSpelStaat } from './spel.js';
+import { RAD_OPTIE_MAX } from '../logic/reducer.js';
 
 export function instellingenScherm(store, app) {
   const m = store.meta;
@@ -28,12 +29,23 @@ export function instellingenScherm(store, app) {
   });
 
   const el = h('div', { class: 'scherm instellingen' },
-    h('h2', null, 'Rad voor het rondje'),
+    h('h2', null, 'Rad voor de verliezer'),
+    h('p', { class: 'hint' }, 'Na het potje draait wie als eerste dood ging aan het rad. Zet het rad per potje aan bij het starten.'),
     h('div', { class: 'kaart instellingen-lijst' },
-      schakelaar('Verliezer weegt zwaarder', m.verliezerZwaarder, (v) => store.zetMeta({ verliezerZwaarder: v })),
+      m.radOpties.map((optie) =>
+        h('div', { class: 'regel' },
+          h('span', null, optie),
+          h('button', {
+            class: 'knop tekst klein',
+            'aria-label': `${optie} verwijderen`,
+            disabled: m.radOpties.length <= 1,
+            onclick: () => store.radOptieVerwijderen(optie),
+          }, 'Verwijderen'),
+        ),
+      ),
       schakelaar('Geluid bij het rad', m.radGeluid, (v) => store.zetMeta({ radGeluid: v })),
     ),
-    h('p', { class: 'hint' }, 'Het rad zet je per potje aan bij het starten. De verliezer is wie als eerste dood ging en komt er dan twee keer zo vaak uit.'),
+    radOptieFormulier(store),
 
     h('h2', null, 'Ranglijst'),
     h('div', { class: 'kaart instellingen-lijst' },
@@ -64,9 +76,22 @@ export function instellingenScherm(store, app) {
     h('p', { class: 'privacy' },
       'Viltje verzamelt niets. Er is geen account, geen tracking, geen advertenties en er gaan geen gegevens naar een server. ',
       'Spelers, potjes en strepen worden alleen in de browser op dit toestel bewaard en verlaten het toestel alleen als jij zelf een back-up exporteert.'),
-    h('p', { class: 'klein versie' }, `Viltje ${__VERSIE__} · opslag: ${app.opslagSoort}`),
+    h('p', { class: 'klein versie' }, `Viltje ${__VERSIE__}, opslag in ${app.opslagSoort}`),
   );
   return { el, sleutel: 'instellingen' };
+}
+
+function radOptieFormulier(store) {
+  const input = h('input', { type: 'text', placeholder: 'Nieuwe opdracht', maxlength: String(RAD_OPTIE_MAX), enterkeyhint: 'done', autocomplete: 'off', 'aria-label': 'Nieuwe opdracht voor het rad', 'data-focus': 'rad-optie' });
+  return h('form', {
+    class: 'snel-toevoegen',
+    onsubmit: async (e) => {
+      e.preventDefault();
+      const tekst = input.value.trim();
+      if (!tekst) return input.focus();
+      if (!(await store.radOptieToevoegen(tekst))) toast(`${tekst} staat al op het rad.`);
+    },
+  }, input, h('button', { class: 'knop', type: 'submit' }, 'Toevoegen'));
 }
 
 function exporteer(store) {

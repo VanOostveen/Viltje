@@ -1,7 +1,9 @@
-// App-toestand: alle data in het geheugen, elke wijziging direct naar de opslag.
+// App-toestand: alle data in het geheugen. Elke wijziging is een actie die door
+// de reducer gaat; daarna gaat precies het verschil in één keer naar de opslag.
 import { leegData, migreer, maakExport, leesExport } from './migratie.js';
-import { standen, winnaar, laatsteStreep, armen, eersteDood, SPELERS_MIN, SPELERS_MAX } from '../logic/score.js';
-import { isVerlopen, laatsteActiviteit } from '../logic/avond.js';
+import { verschil } from './opslag.js';
+import { reducer, openAvond, lopendPotje } from '../logic/reducer.js';
+import { standen, armen, eersteDood, lafTellers } from '../logic/score.js';
 
 export const KLEUREN = ['#9E2333', '#2F6E8E', '#C7841F', '#3F7D4E', '#6B4C9A', '#B5527B', '#5A6B73', '#8A5A2B'];
 
@@ -13,20 +15,29 @@ function nieuwId() {
 export function maakStore(opslag, klok = () => Date.now()) {
   let data = leegData();
   let laatsteTijd = 0;
+  let wachtrij = Promise.resolve();
   const luisteraars = new Set();
 
-  // Strepen moeten op volgorde blijven, ook bij twee tikken in dezelfde milliseconde.
+  // Acties moeten op volgorde blijven, ook bij twee tikken in dezelfde milliseconde.
   const tijd = () => {
     laatsteTijd = Math.max(klok(), laatsteTijd + 1);
     return laatsteTijd;
   };
   const meld = () => luisteraars.forEach((f) => f());
-  const zet = (store, obj) => opslag.zet(store, obj);
 
-  function zetIn(lijst, obj) {
-    const i = lijst.findIndex((o) => o.id === obj.id);
-    if (i >= 0) lijst[i] = obj;
-    else lijst.push(obj);
+  /** Stuurt een actie door de reducer. Geeft true als er iets veranderde. */
+  async function verwerk(actie) {
+    const oud = data;
+    const nieuw = reducer(oud, actie);
+    if (nieuw === oud) return false;
+    data = nieuw;
+    // Schrijven gebeurt na elkaar, in de volgorde van de acties.
+    wachtrij = wachtrij
+      .then(() => opslag.pasToe(verschil(oud, nieuw)))
+      .catch((e) => console.error('Opslaan mislukt', e));
+    meld();
+    await wachtrij;
+    return true;
   }
 
   const store = {
@@ -36,32 +47,34 @@ export function maakStore(opslag, klok = () => Date.now()) {
     get meta() {
       return data.meta;
     },
+    verwerk,
     luister(f) {
       luisteraars.add(f);
       return () => luisteraars.delete(f);
     },
 
     async init() {
-      data = migreer(await opslag.laad());
+      const rauw = await opslag.laad();
+      data = migreer(rauw);
       laatsteTijd = data.strepen.reduce((m, s) => Math.max(m, s.tijdstip), 0);
-      await zet('meta', data.meta);
+      if (rauw.meta && rauw.meta.schemaversie !== data.meta.schemaversie) {
+        await opslag.vervangAlles(data);
+      } else {
+        await opslag.pasToe({ zet: [['meta', data.meta]], verwijder: [] });
+      }
       await store.sluitVerlopenAvonden();
     },
 
-    async zetMeta(patch) {
-      data.meta = { ...data.meta, ...patch };
-      await zet('meta', data.meta);
-      meld();
-    },
+    zetMeta: (patch) => verwerk({ type: 'meta/gezet', patch }),
 
     // ---- Spelers ----
     speler: (id) => data.spelers.find((s) => s.id === id),
     actieveSpelers: () =>
       data.spelers.filter((s) => !s.gearchiveerd).sort((a, b) => a.naam.localeCompare(b.naam, 'nl')),
+    heeftGespeeld: (id) => data.potjes.some((p) => p.spelers.includes(id)),
 
     async spelerToevoegen({ naam, kleur, emoji = '' }) {
-      naam = naam.trim();
-      if (!naam) throw new Error('Geef de speler een naam.');
+      if (!naam?.trim()) throw new Error('Geef de speler een naam.');
       const speler = {
         id: nieuwId(),
         naam,
@@ -69,99 +82,39 @@ export function maakStore(opslag, klok = () => Date.now()) {
         emoji: emoji.trim(),
         aangemaakt: klok(),
       };
-      data.spelers.push(speler);
-      await zet('spelers', speler);
-      meld();
-      return speler;
+      if (!(await verwerk({ type: 'speler/toegevoegd', speler }))) {
+        throw new Error(`${naam.trim()} staat al in de lijst.`);
+      }
+      return store.speler(speler.id);
     },
 
     async spelerWijzigen(id, patch) {
-      const speler = { ...store.speler(id), ...patch };
-      if (patch.naam !== undefined) {
-        speler.naam = patch.naam.trim();
-        if (!speler.naam) throw new Error('Geef de speler een naam.');
+      if (!(await verwerk({ type: 'speler/gewijzigd', id, patch }))) {
+        throw new Error('Deze naam is leeg of bestaat al.');
       }
-      zetIn(data.spelers, speler);
-      await zet('spelers', speler);
-      meld();
     },
 
-    heeftGespeeld: (id) => data.potjes.some((p) => p.spelers.includes(id)),
-
-    /** Wie al potjes speelde wordt gearchiveerd, zodat de statistieken kloppen. */
-    async spelerVerwijderen(id) {
-      if (store.heeftGespeeld(id)) return store.spelerWijzigen(id, { gearchiveerd: true });
-      data.spelers = data.spelers.filter((s) => s.id !== id);
-      await opslag.verwijder('spelers', id);
-      meld();
-    },
+    spelerVerwijderen: (id) => verwerk({ type: 'speler/verwijderd', id }),
 
     // ---- Avonden ----
-    openAvond: () => data.avonden.find((a) => !a.einde) ?? null,
+    openAvond: () => openAvond(data),
     potjesVan: (avondId) =>
       data.potjes.filter((p) => p.avond === avondId).sort((a, b) => a.start - b.start),
-
-    async sluitVerlopenAvonden() {
-      for (const avond of data.avonden) {
-        if (isVerlopen(avond, data.potjes, data.strepen, klok())) {
-          await store.avondKlaar(avond.id, laatsteActiviteit(avond, data.potjes, data.strepen));
-        }
-      }
-    },
-
-    async avondKlaar(avondId = store.openAvond()?.id, einde = klok()) {
-      const avond = data.avonden.find((a) => a.id === avondId);
-      if (!avond) return;
-      // Een potje zonder winnaar aan het eind van de avond telt niet.
-      for (const p of store.potjesVan(avondId)) {
-        if (!p.einde) await store.potjeVerwijderen(p.id, { stil: true });
-      }
-      if (!data.avonden.includes(avond)) return meld();
-      const klaar = { ...avond, einde };
-      zetIn(data.avonden, klaar);
-      await zet('avonden', klaar);
-      meld();
-    },
+    sluitVerlopenAvonden: () => verwerk({ type: 'avonden/verlopen', nu: klok() }),
+    avondKlaar: (avond) => verwerk({ type: 'avond/klaar', avond, nu: klok() }),
 
     // ---- Potjes ----
     potje: (id) => data.potjes.find((p) => p.id === id),
-    lopendPotje: () => data.potjes.find((p) => !p.einde) ?? null,
+    lopendPotje: () => lopendPotje(data),
     standen: (potje) => standen(potje, data.strepen),
+    lafTellers: (potje) => lafTellers(potje, data.strepen),
+    verliezer: (potje) => eersteDood(potje, data.strepen),
 
-    async startPotje(spelerIds, instellingen) {
-      if (spelerIds.length < SPELERS_MIN || spelerIds.length > SPELERS_MAX) {
-        throw new Error(`Kies ${SPELERS_MIN} tot ${SPELERS_MAX} spelers.`);
-      }
-      await store.sluitVerlopenAvonden();
-      const lopend = store.lopendPotje();
-      if (lopend) await store.potjeVerwijderen(lopend.id, { stil: true });
-
-      const nu = klok();
-      let avond = store.openAvond();
-      if (!avond) {
-        avond = { id: nieuwId(), start: nu, einde: null, spelers: [] };
-        data.avonden.push(avond);
-      }
-      avond = { ...avond, spelers: [...new Set([...avond.spelers, ...spelerIds])] };
-      zetIn(data.avonden, avond);
-      await zet('avonden', avond);
-
-      const potje = {
-        id: nieuwId(),
-        avond: avond.id,
-        spelers: [...spelerIds],
-        instellingen: { ...instellingen },
-        start: nu,
-        einde: null,
-        winnaar: null,
-        uitkomstRad: null,
-      };
-      data.potjes.push(potje);
-      await zet('potjes', potje);
-      data.meta = { ...data.meta, instellingen: { ...instellingen } };
-      await zet('meta', data.meta);
-      meld();
-      return potje;
+    async startPotje(spelers, instellingen) {
+      const potjeId = nieuwId();
+      const actie = { type: 'potje/gestart', potjeId, avondId: nieuwId(), spelers, instellingen, nu: klok() };
+      if (!(await verwerk(actie))) throw new Error('Kies 2 tot 8 spelers.');
+      return store.potje(potjeId);
     },
 
     /**
@@ -170,80 +123,45 @@ export function maakStore(opslag, klok = () => Date.now()) {
      */
     async streep(potjeId, spelerId, delta) {
       const potje = store.potje(potjeId);
-      if (!potje || potje.einde) return {};
+      if (!potje) return {};
       const voor = standen(potje, data.strepen);
-      if (delta < 0 && voor[spelerId] <= 0) return {};
       const armVoor = armen(potje, voor);
-
       const streep = { id: nieuwId(), potje: potjeId, speler: spelerId, delta: delta > 0 ? 1 : -1, tijdstip: tijd() };
-      data.strepen.push(streep);
-      await zet('strepen', streep);
-
+      if (!(await verwerk({ type: 'streep/gezet', streep }))) return {};
       const na = standen(potje, data.strepen);
-      const nieuwArm = armen(potje, na).filter((id) => !armVoor.includes(id));
       const { doodBij } = potje.instellingen;
-      const nieuwDood = voor[spelerId] < doodBij && na[spelerId] >= doodBij ? spelerId : null;
-      const w = winnaar(potje, na);
-      if (w) {
-        const klaar = { ...potje, einde: streep.tijdstip, winnaar: w };
-        zetIn(data.potjes, klaar);
-        await zet('potjes', klaar);
-      }
-      meld();
-      return { winnaar: w, nieuwArm, nieuwDood };
+      return {
+        winnaar: store.potje(potjeId)?.winnaar ?? null,
+        nieuwArm: armen(potje, na).filter((id) => !armVoor.includes(id)),
+        nieuwDood: voor[spelerId] < doodBij && na[spelerId] >= doodBij ? spelerId : null,
+      };
     },
 
-    /** Verwijdert de laatste streep; een afgelopen potje gaat dan weer verder. */
+    laf: (potjeId, spelerId) =>
+      verwerk({ type: 'laf/gezet', laf: { id: nieuwId(), potje: potjeId, speler: spelerId, tijdstip: tijd() } }),
+
+    /** Haalt de laatste actie (streep of laf) weg en geeft die terug. */
     async ongedaan(potjeId) {
-      const potje = store.potje(potjeId);
-      const laatste = potje && laatsteStreep(potjeId, data.strepen);
-      if (!laatste) return null;
-      data.strepen = data.strepen.filter((s) => s.id !== laatste.id);
-      await opslag.verwijder('strepen', laatste.id);
-      if (potje.einde && !winnaar(potje, standen(potje, data.strepen))) {
-        const weer = { ...potje, einde: null, winnaar: null, uitkomstRad: null };
-        zetIn(data.potjes, weer);
-        await zet('potjes', weer);
-      }
-      meld();
-      return laatste;
+      const voor = data.strepen;
+      if (!(await verwerk({ type: 'ongedaan', potje: potjeId }))) return null;
+      const over = new Set(data.strepen);
+      return voor.find((s) => !over.has(s)) ?? null;
     },
 
-    verliezer: (potje) => eersteDood(potje, data.strepen),
-
-    async radUitkomst(potjeId, spelerId) {
-      const potje = { ...store.potje(potjeId), uitkomstRad: spelerId };
-      zetIn(data.potjes, potje);
-      await zet('potjes', potje);
-      meld();
-    },
-
-    async potjeVerwijderen(potjeId, { stil = false } = {}) {
-      const potje = store.potje(potjeId);
-      if (!potje) return;
-      for (const s of data.strepen.filter((s) => s.potje === potjeId)) {
-        await opslag.verwijder('strepen', s.id);
-      }
-      data.strepen = data.strepen.filter((s) => s.potje !== potjeId);
-      data.potjes = data.potjes.filter((p) => p.id !== potjeId);
-      await opslag.verwijder('potjes', potjeId);
-      // Een avond zonder potjes bestaat niet.
-      if (!data.potjes.some((p) => p.avond === potje.avond)) {
-        data.avonden = data.avonden.filter((a) => a.id !== potje.avond);
-        await opslag.verwijder('avonden', potje.avond);
-      }
-      if (!stil) meld();
-    },
+    radUitkomst: (potjeId, opdracht) => verwerk({ type: 'rad/uitkomst', potje: potjeId, opdracht }),
+    radOptieToevoegen: (tekst) => verwerk({ type: 'rad/optie-toegevoegd', tekst }),
+    radOptieVerwijderen: (tekst) => verwerk({ type: 'rad/optie-verwijderd', tekst }),
+    potjeVerwijderen: (id) => verwerk({ type: 'potje/verwijderd', id }),
 
     // ---- Back-up ----
     exporteer: () => maakExport(data, klok()),
 
     async importeer(invoer) {
-      const nieuw = leesExport(invoer);
+      const nieuw = reducer(data, { type: 'data/vervangen', data: leesExport(invoer), nu: klok() });
+      await wachtrij;
       await opslag.vervangAlles(nieuw);
       data = nieuw;
       laatsteTijd = data.strepen.reduce((m, s) => Math.max(m, s.tijdstip), 0);
-      await store.sluitVerlopenAvonden();
       meld();
     },
   };

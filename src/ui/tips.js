@@ -11,7 +11,7 @@ export function toonTips() {
       h('p', { class: 'klein' }, 'Strepen bijhouden bij toepen'),
       h('ol', null,
         h('li', null, h('strong', null, 'Spelers erbij. '), 'Tik ze aan in tafelvolgorde en start het potje.'),
-        h('li', null, h('strong', null, 'Tik + bij wie strepen krijgt. '), 'Foutje? Ongedaan maken zet de laatste streep terug.'),
+        h('li', null, h('strong', null, 'Tik + bij wie strepen krijgt. '), 'Gaat iemand niet mee met een toep, tik dan Laf. Foutje? Ongedaan maken zet het terug.'),
         h('li', null, h('strong', null, 'Alles blijft op deze telefoon. '), 'Maak af en toe een back-up via het tandwiel.'),
       ),
       h('button', { class: 'knop primair groot', onclick: () => sluit(true) }, 'Aan de slag'),

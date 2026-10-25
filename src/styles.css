@@ -494,9 +494,7 @@ input[type='text']:focus {
   background: var(--rood);
   color: #fff;
   text-align: center;
-  font-weight: 800;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  font-weight: 700;
 }
 
 .bord.armoede .armoede-balk {
@@ -533,11 +531,56 @@ input[type='text']:focus {
 
 .bord-kop {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
   padding: 0 4px 6px 8px;
+}
+
+.bord-kop .knop {
+  margin-left: auto;
+}
+
+/* Laf: niet meegaan met een toep. Mag twee keer per potje. */
+.laf-knop {
+  flex: none;
+  margin-left: auto;
+  min-width: 56px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--rand);
+  border-radius: 999px;
+  background: var(--knop);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.laf-knop:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.laf-knop.vol {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.laf-knop:disabled {
+  opacity: 0.6;
+}
+
+.laf-knop.tel {
+  animation: tel 0.35s ease-out;
+}
+
+@keyframes tel {
+  40% {
+    transform: scale(1.18);
+  }
+}
+
+.laf-teken {
+  font-size: 0.8rem;
   color: var(--zacht);
-  font-size: 0.9rem;
 }
 
 .rijen {
@@ -547,10 +590,12 @@ input[type='text']:focus {
 
 .rij {
   display: grid;
-  grid-template-columns: 1fr 56px 44px 68px;
+  grid-template-columns: 1fr 56px 40px 68px;
+  grid-template-areas:
+    'naam naam naam naam'
+    'turf min stand plus';
   align-items: center;
-  gap: 6px;
-  min-height: 84px;
+  gap: 4px 6px;
   padding: 8px 8px 8px 12px;
   background: var(--kaart);
   border: 1px solid var(--rand);
@@ -560,15 +605,30 @@ input[type='text']:focus {
   transition: background 0.3s, opacity 0.3s;
 }
 
-.rij-info {
-  min-width: 0;
-}
-
 .rij-naam {
+  grid-area: naam;
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
+  min-height: 36px;
+}
+
+.rij .turf-vak {
+  grid-area: turf;
+  min-width: 0;
+}
+
+.rij .knop-min {
+  grid-area: min;
+}
+
+.rij .stand {
+  grid-area: stand;
+}
+
+.rij .knop-plus {
+  grid-area: plus;
 }
 
 .rij-naam .avatar {
@@ -589,10 +649,8 @@ input[type='text']:focus {
   flex: none;
   padding: 1px 8px;
   border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .rij.arm .label {
@@ -613,15 +671,6 @@ input[type='text']:focus {
   50% {
     transform: scale(1.08);
   }
-}
-
-.rij-onder {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-  min-height: 28px;
-  margin-top: 4px;
 }
 
 .turf {
@@ -662,7 +711,7 @@ input[type='text']:focus {
 
 .knop-min,
 .knop-plus {
-  height: 64px;
+  height: 56px;
   border-radius: 16px;
   border: 0;
   font-size: 2rem;
@@ -751,16 +800,10 @@ input[type='text']:focus {
   }
 }
 
-/* Veel spelers: compactere rijen, zodat ze op één scherm passen. */
+/* Veel spelers: compactere rijen, zodat er meer op één scherm passen. */
 .bord.veel .rij {
-  min-height: 70px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-}
-
-.bord.veel .knop-min,
-.bord.veel .knop-plus {
-  height: 58px;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .bord.veel .rijen {
@@ -1096,21 +1139,24 @@ input[type='text']:focus {
 }
 
 .cijfers {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
   margin: 0;
-  padding: 4px 14px 14px;
+  padding: 0 14px 8px;
+}
+
+.cijfers div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--rand);
 }
 
 .cijfers dt {
-  font-size: 0.8rem;
   color: var(--zacht);
 }
 
 .cijfers dd {
   margin: 0;
-  font-size: 1.2rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1176,9 +1222,7 @@ input[type='text']:focus {
 }
 
 .veld > span {
-  font-size: 0.85rem;
   font-weight: 600;
-  color: var(--zacht);
 }
 
 .voorbeeld {

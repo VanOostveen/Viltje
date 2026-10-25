@@ -1,11 +1,12 @@
 // Tabblad Statistieken: ranglijst en cijfers per speler over alle avonden.
-import { statistieken, ranglijst } from '../logic/stats.js';
+import { statistieken, ranglijst, lafKlassement } from '../logic/stats.js';
 import { h, avatar, getal, meervoud } from './dom.js';
 
 export function statistiekenScherm(store, app) {
   const stats = statistieken(store.data);
   const min = store.meta.minPotjes;
   const { lijst, teWeinig } = ranglijst(stats, min);
+  const laf = lafKlassement(stats);
   const speler = (id) => store.speler(id);
 
   if (lijst.length === 0 && teWeinig.length === 0) {
@@ -29,7 +30,7 @@ export function statistiekenScherm(store, app) {
         cijfer('Eerste dood', s.eersteDood),
         cijfer('Gem. strepen bij einde', getal(s.gemStrepen)),
         cijfer('Langste winstreak', s.langsteReeks),
-        cijfer('Rondjes gehaald', s.rondjes),
+        cijfer('Keer laf', s.laf),
       ),
     );
 
@@ -51,6 +52,21 @@ export function statistiekenScherm(store, app) {
     h('p', { class: 'hint' },
       `Op winpercentage, vanaf ${meervoud(min, 'potje', 'potjes')}. `,
       h('button', { class: 'link', onclick: () => app.navigeer('instellingen') }, 'Aanpassen')),
+    h('h2', null, 'Laffe spelers'),
+    laf.length === 0
+      ? h('p', { class: 'hint' }, 'Nog niemand is laf geweest. Knap.')
+      : h('ol', { class: 'ranglijst laf' },
+          laf.map((s, i) =>
+            h('li', null,
+              h('span', { class: 'plek' }, i + 1),
+              avatar(speler(s.id)),
+              h('span', { class: 'naam' }, s.naam),
+              h('span', { class: 'klein' }, `${getal(s.lafPerPotje)} per potje`),
+              h('strong', { class: 'pct' }, `${s.laf}×`),
+            ),
+          ),
+        ),
+    h('p', { class: 'hint' }, 'Hoe vaak iemand niet meeging met een toep, over alle potjes.'),
     h('h2', null, 'Per speler'),
     [...lijst, ...teWeinig].map(kaart),
   );

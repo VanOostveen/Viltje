@@ -1,5 +1,5 @@
 // Tabblad Spel: potje opzetten, scorebord en de uitslag.
-import { status, magMin, armen, laatsteStreep, DOOD_MIN, DOOD_MAX, SPELERS_MIN, SPELERS_MAX } from '../logic/score.js';
+import { status, magMin, magLaf, armen, laatsteStreep, LAF_MAX, DOOD_MIN, DOOD_MAX, SPELERS_MIN, SPELERS_MAX } from '../logic/score.js';
 import { h, avatar, bevestig, toast, flits, tijd, meervoud } from './dom.js';
 import { turf } from './turf.js';
 import { rad } from './rad.js';
@@ -58,7 +58,7 @@ function opzet(store, app) {
         h('div', { class: 'kaart avond-kaart' },
           h('div', null,
             h('strong', null, 'Avond bezig'),
-            h('div', { class: 'klein' }, `sinds ${tijd(avond.start)} · ${meervoud(potjes.length, 'potje', 'potjes')}`),
+            h('div', { class: 'klein' }, `Sinds ${tijd(avond.start)}, ${meervoud(potjes.length, 'potje', 'potjes')}`),
           ),
           h('button', {
             class: 'knop',
@@ -102,7 +102,6 @@ function opzet(store, app) {
       ),
       nieuweSpelerFormulier(store, (s) => {
         if (staat.geselecteerd.length < SPELERS_MAX) staat.geselecteerd.push(s.id);
-        staat.focusNieuw = true;
         app.ververs();
       }),
       h('h2', null, 'Instellingen'),
@@ -122,7 +121,7 @@ function opzet(store, app) {
           ),
         ),
         schakelaar('Armoede tonen', inst.armoede, (v) => (inst.armoede = v)),
-        schakelaar('Rad voor het rondje', inst.rad, (v) => (inst.rad = v)),
+        schakelaar('Rad voor de verliezer', inst.rad, (v) => (inst.rad = v)),
       ),
       h('div', { class: 'start-balk' },
         h('button', {
@@ -138,10 +137,6 @@ function opzet(store, app) {
   }
 
   teken();
-  if (staat.focusNieuw) {
-    staat.focusNieuw = false;
-    requestAnimationFrame(() => el.querySelector('.snel-toevoegen input')?.focus());
-  }
   return { el, sleutel: 'opzet' };
 }
 
@@ -166,21 +161,26 @@ function bord(store, app, potje) {
     const label = h('span', { class: 'label' });
     const turfVak = h('div', { class: 'turf-vak' });
     const min = h('button', { class: 'knop-min', 'aria-label': `Streep eraf bij ${s?.naam}`, onclick: () => tik(id, -1) }, '−');
+    const laf = h('button', {
+      class: 'laf-knop',
+      'aria-label': `${s?.naam} was laf`,
+      title: `Laf mag ${LAF_MAX} keer per potje`,
+      onclick: () => lafTik(id),
+    });
     const plus = h('button', { class: 'knop-plus', 'aria-label': `Streep erbij voor ${s?.naam}`, onclick: () => tik(id, 1) }, '+');
     const rij = h('div', { class: 'rij', style: `--kleur:${s?.kleur ?? '#777'}` },
-      h('div', { class: 'rij-info' },
-        h('div', { class: 'rij-naam' }, avatar(s), h('span', { class: 'naam' }, s?.naam ?? '?')),
-        h('div', { class: 'rij-onder' }, label, turfVak),
-      ),
+      h('div', { class: 'rij-naam' }, avatar(s), h('span', { class: 'naam' }, s?.naam ?? '?'), label, laf),
+      turfVak,
       min, stand, plus,
     );
-    rijen.set(id, { rij, stand, label, turfVak, min });
+    rijen.set(id, { rij, stand, label, turfVak, min, laf });
   }
 
   const bordEl = h('section', { class: `bord${potje.spelers.length > 5 ? ' veel' : ''}` },
     armoedeBalk,
     h('div', { class: 'bord-kop' },
-      h('span', null, `Potje ${nummer || ''} · dood bij ${potje.instellingen.doodBij}`),
+      h('strong', null, `Potje ${nummer || ''}`),
+      h('span', { class: 'klein' }, `Dood bij ${potje.instellingen.doodBij}`),
       h('button', { class: 'knop tekst klein', onclick: () => stoppen() }, 'Stoppen'),
     ),
     h('div', { class: 'rijen' }, [...rijen.values()].map((r) => r.rij)),
@@ -194,6 +194,7 @@ function bord(store, app, potje) {
     if (!p) return;
     const st = store.standen(p);
     const arm = armen(p, st);
+    const lafs = store.lafTellers(p);
     bordEl.classList.toggle('armoede', arm.length > 0);
     for (const [id, r] of rijen) {
       const st8 = status(st[id], p.instellingen.doodBij);
@@ -207,6 +208,9 @@ function bord(store, app, potje) {
       if (vorigeStanden[id] !== st[id]) r.turfVak.replaceChildren(turf(st[id]));
       r.min.disabled = !magMin(st[id]) || !!p.einde;
       r.rij.querySelector('.knop-plus').disabled = !!p.einde;
+      r.laf.textContent = `Laf ${lafs[id]}`;
+      r.laf.classList.toggle('vol', lafs[id] >= LAF_MAX);
+      r.laf.disabled = !magLaf(p, st[id], lafs[id]) || !!p.einde;
     }
     vorigeStanden = st;
     ongedaanKnop.disabled = !laatsteStreep(p.id, store.data.strepen);
@@ -224,9 +228,16 @@ function bord(store, app, potje) {
     if (uit.nieuwDood) flits(rijen.get(uit.nieuwDood)?.rij, 'sterf');
   }
 
+  async function lafTik(id) {
+    navigator.vibrate?.(10);
+    if (await store.laf(potje.id, id)) flits(rijen.get(id)?.laf, 'tel');
+  }
+
   async function ongedaan() {
     const weg = await store.ongedaan(potje.id);
-    if (weg) toast(`Streep van ${speler(weg.speler)?.naam ?? '?'} teruggezet`, { duur: 1800 });
+    if (!weg) return;
+    const wat = weg.soort === 'laf' ? 'Laf' : 'Streep';
+    toast(`${wat} van ${speler(weg.speler)?.naam ?? '?'} teruggezet`, { duur: 1800 });
   }
 
   async function stoppen() {
@@ -257,6 +268,7 @@ function bord(store, app, potje) {
 function uitslag(store, app, potje) {
   const w = store.speler(potje.winnaar);
   const verliezer = store.verliezer(potje);
+  const verliezerNaam = store.speler(verliezer)?.naam ?? '?';
   const confetti = Array.from({ length: 18 }, (_, i) =>
     h('i', { style: `--x:${(i * 37) % 100}%;--d:${(i % 6) * 0.12}s;--r:${(i * 47) % 360}deg` }),
   );
@@ -267,16 +279,14 @@ function uitslag(store, app, potje) {
       h('div', { class: 'beker', 'aria-hidden': 'true' }, '🏆'),
       avatar(w, true),
       h('h2', null, `${w?.naam ?? '?'} wint!`),
-      verliezer && h('p', { class: 'klein' }, `Eerst dood: ${store.speler(verliezer)?.naam ?? '?'}`),
+      verliezer && h('p', { class: 'klein' }, `Eerst dood: ${verliezerNaam}`),
       potje.instellingen.rad &&
         rad({
-          spelers: potje.spelers,
-          verliezer,
-          verliezerZwaarder: store.meta.verliezerZwaarder,
+          opties: store.meta.radOpties,
+          verliezerNaam,
           geluid: store.meta.radGeluid,
           uitkomst: potje.uitkomstRad,
-          spelerVan: (id) => store.speler(id),
-          opUitkomst: (id) => store.radUitkomst(potje.id, id),
+          opUitkomst: (opdracht) => store.radUitkomst(potje.id, opdracht),
         }),
       h('div', { class: 'uitslag-knoppen' },
         h('button', {

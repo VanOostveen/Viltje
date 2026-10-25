@@ -1,11 +1,16 @@
 // Scorelogica: puur, zonder DOM of opslag, zodat alles te testen is.
 // Een potje heeft spelers in tafelvolgorde en instellingen { doodBij, armoede, rad }.
-// Een streep is { id, potje, speler, delta: +1 | -1, tijdstip }.
+// Een actie in een potje is { id, potje, speler, soort, delta, tijdstip }:
+// soort 'streep' (delta +1 of −1) of 'laf' (speler ging niet mee met een toep).
 
 export const DOOD_MIN = 5;
 export const DOOD_MAX = 30;
 export const SPELERS_MIN = 2;
 export const SPELERS_MAX = 8;
+/** Laf mag twee keer per potje, de derde keer niet. */
+export const LAF_MAX = 2;
+
+const isStreep = (s) => (s.soort ?? 'streep') === 'streep';
 
 export function strepenVan(potjeId, strepen) {
   return strepen
@@ -17,7 +22,7 @@ export function strepenVan(potjeId, strepen) {
 export function standen(potje, strepen) {
   const uit = Object.fromEntries(potje.spelers.map((id) => [id, 0]));
   for (const s of strepen) {
-    if (s.potje === potje.id && s.speler in uit) uit[s.speler] += s.delta;
+    if (s.potje === potje.id && s.speler in uit && isStreep(s)) uit[s.speler] += s.delta;
   }
   return uit;
 }
@@ -50,7 +55,21 @@ export function magMin(stand) {
   return stand > 0;
 }
 
-/** De laatste streep van dit potje (die ongedaan maken verwijdert), of null. */
+/** Hoe vaak elke speler in dit potje laf was. */
+export function lafTellers(potje, strepen) {
+  const uit = Object.fromEntries(potje.spelers.map((id) => [id, 0]));
+  for (const s of strepen) {
+    if (s.potje === potje.id && s.speler in uit && s.soort === 'laf') uit[s.speler]++;
+  }
+  return uit;
+}
+
+/** Laf kan alleen voor een levende speler die nog niet twee keer laf was. */
+export function magLaf(potje, stand, laf) {
+  return stand < potje.instellingen.doodBij && laf < LAF_MAX;
+}
+
+/** De laatste actie (streep of laf) van dit potje, die ongedaan maken verwijdert, of null. */
 export function laatsteStreep(potjeId, strepen) {
   const eigen = strepenVan(potjeId, strepen);
   return eigen.length ? eigen[eigen.length - 1] : null;
@@ -65,7 +84,7 @@ export function doodsVolgorde(potje, strepen) {
   const stand = Object.fromEntries(potje.spelers.map((id) => [id, 0]));
   let volgorde = [];
   for (const s of strepenVan(potje.id, strepen)) {
-    if (!(s.speler in stand)) continue;
+    if (!(s.speler in stand) || !isStreep(s)) continue;
     const was = stand[s.speler] >= doodBij;
     stand[s.speler] += s.delta;
     const is = stand[s.speler] >= doodBij;

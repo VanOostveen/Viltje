@@ -24,8 +24,15 @@ export async function idbOpslag(idb = globalThis.indexedDB) {
       uit.meta = await db.get('meta', 'meta');
       return uit;
     },
-    zet: (store, obj) => db.put(store, obj),
-    verwijder: (store, id) => db.delete(store, id),
+    /** Alle wijzigingen van één actie in één transactie: alles of niets. */
+    async pasToe({ zet, verwijder }) {
+      const stores = [...new Set([...zet, ...verwijder].map(([store]) => store))];
+      if (!stores.length) return;
+      const tx = db.transaction(stores, 'readwrite');
+      for (const [store, obj] of zet) tx.objectStore(store).put(obj);
+      for (const [store, id] of verwijder) tx.objectStore(store).delete(id);
+      await tx.done;
+    },
     async vervangAlles(data) {
       const tx = db.transaction([...STORES, 'meta'], 'readwrite');
       for (const store of STORES) {
@@ -51,20 +58,41 @@ export function sleutelOpslag(storage, soort = 'localstorage') {
       uit.meta = JSON.parse(storage.getItem(sleutel('meta')) ?? 'null') ?? undefined;
       return uit;
     },
-    async zet(store, obj) {
-      if (store === 'meta') return storage.setItem(sleutel('meta'), JSON.stringify(obj));
-      const lijst = lees(store).filter((o) => o.id !== obj.id);
-      lijst.push(obj);
-      schrijf(store, lijst);
-    },
-    async verwijder(store, id) {
-      schrijf(store, lees(store).filter((o) => o.id !== id));
+    async pasToe({ zet, verwijder }) {
+      const lijsten = {};
+      const lijst = (store) => (lijsten[store] ??= new Map(lees(store).map((o) => [o.id, o])));
+      for (const [store, obj] of zet) {
+        if (store === 'meta') storage.setItem(sleutel('meta'), JSON.stringify(obj));
+        else lijst(store).set(obj.id, obj);
+      }
+      for (const [store, id] of verwijder) lijst(store).delete(id);
+      for (const [store, kaart] of Object.entries(lijsten)) schrijf(store, [...kaart.values()]);
     },
     async vervangAlles(data) {
       for (const store of STORES) schrijf(store, data[store]);
       storage.setItem(sleutel('meta'), JSON.stringify(data.meta));
     },
   };
+}
+
+/**
+ * Wat er tussen twee toestanden veranderde. De reducer vervangt objecten in
+ * plaats van ze aan te passen, dus een ander object betekent een wijziging.
+ */
+export function verschil(oud, nieuw) {
+  const zet = [];
+  const verwijder = [];
+  for (const store of STORES) {
+    if (oud[store] === nieuw[store]) continue;
+    const weg = new Map(oud[store].map((o) => [o.id, o]));
+    for (const obj of nieuw[store]) {
+      if (weg.get(obj.id) !== obj) zet.push([store, obj]);
+      weg.delete(obj.id);
+    }
+    for (const id of weg.keys()) verwijder.push([store, id]);
+  }
+  if (oud.meta !== nieuw.meta) zet.push(['meta', nieuw.meta]);
+  return { zet, verwijder };
 }
 
 export function geheugenOpslag() {

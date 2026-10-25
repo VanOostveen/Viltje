@@ -46,8 +46,11 @@ function teken({ wissel = false } = {}) {
   const scherm = SCHERMEN[naam].maak(store, app, param);
   const zelfde = !wissel && huidig?.naam === naam && huidig.scherm.sleutel === scherm.sleutel;
   const scroll = inhoud.scrollTop;
+  const focus = document.activeElement?.dataset?.focus;
   inhoud.replaceChildren(scherm.el);
   inhoud.scrollTop = zelfde ? scroll : 0;
+  // Een invoerveld dat focus had, houdt die na opnieuw tekenen.
+  if (zelfde && focus) scherm.el.querySelector(`[data-focus="${focus}"]`)?.focus();
   huidig = { naam, param, scherm };
 
   titel.textContent = SCHERMEN[naam].titel;

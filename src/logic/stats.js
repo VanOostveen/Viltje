@@ -1,5 +1,5 @@
 // Statistieken worden telkens uit de opgeslagen data berekend.
-import { standen, eersteDood } from './score.js';
+import { standen, eersteDood, lafTellers } from './score.js';
 
 /** Alleen afgeronde potjes (met winnaar) tellen mee, op volgorde van start. */
 export function afgerondePotjes(potjes) {
@@ -21,15 +21,15 @@ export function statistieken({ spelers, potjes, strepen }) {
     let strepenTotaal = 0;
     let reeks = 0;
     let langsteReeks = 0;
-    let rondjes = 0;
+    let laf = 0;
 
     for (const p of klaar) {
-      if (p.uitkomstRad === speler.id) rondjes++;
       if (!p.spelers.includes(speler.id)) continue;
       const eigen = perPotjeStrepen.get(p.id) ?? [];
       gespeeld++;
       strepenTotaal += standen(p, eigen)[speler.id];
       if (eersteDood(p, eigen) === speler.id) eersteDoodKeer++;
+      laf += lafTellers(p, eigen)[speler.id];
       if (p.winnaar === speler.id) {
         gewonnen++;
         reeks++;
@@ -48,7 +48,8 @@ export function statistieken({ spelers, potjes, strepen }) {
       eersteDood: eersteDoodKeer,
       gemStrepen: gespeeld ? strepenTotaal / gespeeld : 0,
       langsteReeks,
-      rondjes,
+      laf,
+      lafPerPotje: gespeeld ? laf / gespeeld : 0,
     };
   });
 }
@@ -64,4 +65,11 @@ export function ranglijst(stats, minPotjes) {
     lijst: stats.filter((s) => s.gespeeld >= minPotjes).sort(sorteer),
     teWeinig: stats.filter((s) => s.gespeeld > 0 && s.gespeeld < minPotjes).sort(sorteer),
   };
+}
+
+/** Laffe spelersklassement: wie ging het vaakst niet mee met een toep. */
+export function lafKlassement(stats) {
+  return stats
+    .filter((s) => s.laf > 0)
+    .sort((a, b) => b.laf - a.laf || b.lafPerPotje - a.lafPerPotje || a.naam.localeCompare(b.naam, 'nl'));
 }

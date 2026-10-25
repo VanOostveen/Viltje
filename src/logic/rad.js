@@ -1,13 +1,8 @@
-// Rad voor het rondje: wie eruit komt haalt het volgende rondje.
+// Rad voor de verliezer: het rad kiest wat de verliezer moet doen.
 
-export const VERLIEZER_GEWICHT = 2;
-
-/** Gewichten per speler; de verliezer weegt zwaarder als dat aan staat. */
-export function gewichten(spelers, verliezer, verliezerZwaarder) {
-  return spelers.map((id) => ({
-    id,
-    gewicht: verliezerZwaarder && id === verliezer ? VERLIEZER_GEWICHT : 1,
-  }));
+/** Elke opdracht krijgt een even groot vak. */
+export function vakken(opties) {
+  return opties.map((id) => ({ id, gewicht: 1 }));
 }
 
 /** Kiest een vak; random() geeft een getal in [0, 1). */

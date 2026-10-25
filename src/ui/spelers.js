@@ -4,9 +4,13 @@ import { h, avatar, dialoog, bevestig, toast, meervoud } from './dom.js';
 
 const EMOJI = ['🍺', '🃏', '👑', '🎩', '🦊', '🐻', '🐸', '🌶️', '🔥', '🍀', '⚓', '🚜'];
 
+// Wat er getypt is blijft bewaard als het scherm opnieuw getekend wordt.
+let concept = '';
+
 /** Klein invoerveld om snel een speler toe te voegen (ook midden in een avond). */
 export function nieuweSpelerFormulier(store, opToegevoegd) {
-  const input = h('input', { type: 'text', placeholder: 'Nieuwe speler', maxlength: '20', enterkeyhint: 'done', autocomplete: 'off', 'aria-label': 'Naam nieuwe speler' });
+  const input = h('input', { type: 'text', value: concept, placeholder: 'Nieuwe speler', maxlength: '20', enterkeyhint: 'done', autocomplete: 'off', 'aria-label': 'Naam nieuwe speler', 'data-focus': 'nieuwe-speler' });
+  input.addEventListener('input', () => (concept = input.value));
   return h('form', {
     class: 'snel-toevoegen',
     onsubmit: async (e) => {
@@ -14,6 +18,8 @@ export function nieuweSpelerFormulier(store, opToegevoegd) {
       const naam = input.value.trim();
       if (!naam) return input.focus();
       if (bestaat(store, naam)) return toast(`${naam} staat al in de lijst.`);
+      concept = '';
+      input.value = '';
       const s = await store.spelerToevoegen({ naam });
       opToegevoegd?.(s);
     },

@@ -51,8 +51,8 @@ function detail(store, app, avondId) {
     h('button', { class: 'knop tekst terug', onclick: () => app.navigeer('geschiedenis') }, '‹ Alle avonden'),
     h('h2', null, datum(avond.start)),
     h('p', { class: 'klein' },
-      avond.einde ? `${tijd(avond.start)} tot ${tijd(avond.einde)}` : `Bezig sinds ${tijd(avond.start)}`,
-      ` · ${meervoud(potjes.filter((p) => p.einde).length, 'potje', 'potjes')}`),
+      avond.einde ? `Van ${tijd(avond.start)} tot ${tijd(avond.einde)}` : `Bezig sinds ${tijd(avond.start)}`,
+      `, ${meervoud(potjes.filter((p) => p.einde).length, 'potje', 'potjes')}`),
     ranking.length > 0 &&
       h('div', { class: 'kaart' },
         h('h3', null, 'Winst deze avond'),
@@ -62,10 +62,12 @@ function detail(store, app, avondId) {
       ),
     potjes.map((p, i) => {
       const st = store.standen(p);
+      const lafs = store.lafTellers(p);
+      const verliezer = p.uitkomstRad && store.verliezer(p);
       return h('article', { class: 'kaart potje' },
         h('div', { class: 'potje-kop' },
           h('strong', null, `Potje ${i + 1}`),
-          h('span', { class: 'klein' }, `${tijd(p.start)} · dood bij ${p.instellingen.doodBij}`),
+          h('span', { class: 'klein' }, `${tijd(p.start)}, dood bij ${p.instellingen.doodBij}`),
         ),
         !p.einde && h('p', { class: 'klein' }, 'Loopt nog'),
         h('ul', { class: 'potje-standen' },
@@ -74,11 +76,12 @@ function detail(store, app, avondId) {
               avatar(store.speler(id)),
               h('span', { class: 'naam' }, naam(store, id)),
               p.winnaar === id && h('span', { 'aria-label': 'winnaar' }, '🏆'),
-              p.uitkomstRad === id && h('span', { title: 'haalde het rondje', 'aria-label': 'haalde het rondje' }, '🍺'),
+              lafs[id] > 0 && h('span', { class: 'laf-teken' }, `laf ${lafs[id]}`),
               h('strong', null, st[id]),
             ),
           ),
         ),
+        verliezer && h('p', { class: 'klein' }, `Opdracht voor ${naam(store, verliezer)}: ${p.uitkomstRad}`),
         p.einde &&
           h('button', {
             class: 'knop tekst gevaar klein',
